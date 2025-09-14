@@ -32,6 +32,9 @@ let atpAgent = null;
 let userDid = null;
 let bookmarks = [];
 let reversedOrder = false;
+let viewingUserDid = null;
+let viewingUserHandle = null;
+let isViewingOtherUser = false;
 
 // ====== DOM Elements ======
 const loginDialog = document.getElementById("loginDialog");
@@ -50,8 +53,49 @@ const cancelBtn = document.getElementById("cancelBtn");
 const openEmptyDialogBtn = document.getElementById("openEmptyDialogBtn");
 const searchInput = document.getElementById("searchInput");
 const sortToggleBtn = document.getElementById("sortToggleBtn");
+const userSearchInput = document.getElementById("userSearchInput");
+const viewingUser = document.getElementById("viewingUser");
+const guestSearchInput = document.getElementById("guestSearchInput");
+const guestViewBtn = document.getElementById("guestViewBtn");
 
 // ====== AT Protocol Functions ======
+
+/**
+ * Resolve handle to DID and PDS
+ */
+async function resolveHandle(handle) {
+  if (!atpAgent && !window.AtpAgent) return null;
+  
+  try {
+    const agent = atpAgent || new window.AtpAgent({
+      service: "https://bsky.social",
+    });
+    
+    // First resolve handle to DID
+    const response = await agent.com.atproto.identity.resolveHandle({
+      handle: handle.replace('@', '')
+    });
+    
+    const did = response.data.did;
+    
+    // Now resolve DID to get PDS URL
+    const didDoc = await fetch(`https://plc.directory/${did}`).then(res => res.json());
+    
+    // Find the PDS service endpoint
+    let pdsUrl = "https://bsky.social"; // fallback
+    if (didDoc.service) {
+      const pdsService = didDoc.service.find(s => s.type === "AtprotoPersonalDataServer");
+      if (pdsService && pdsService.serviceEndpoint) {
+        pdsUrl = pdsService.serviceEndpoint;
+      }
+    }
+    
+    return { did, pdsUrl };
+  } catch (error) {
+    console.error("Failed to resolve handle:", error);
+    return null;
+  }
+}
 
 /**
  * Initialize AT Protocol agent with stored session
@@ -141,28 +185,59 @@ async function logout() {
 /**
  * Load bookmarks from PDS
  */
-async function loadBookmarks() {
-  if (!atpAgent || !userDid) return;
+async function loadBookmarks(targetDid = null, targetPdsUrl = null) {
+  const did = targetDid || userDid;
+  if (!did) return;
+  
+  // Create agent if needed for public access
+  let agent = atpAgent;
+  if (!agent || targetPdsUrl) {
+    const serviceUrl = targetPdsUrl || "https://bsky.social";
+    agent = new window.AtpAgent({
+      service: serviceUrl,
+    });
+  }
 
   try {
     updateConnectionStatus("connecting");
     
-    const response = await atpAgent.com.atproto.repo.listRecords({
-      repo: userDid,
+    // First try to describe the repo to see if it exists
+    try {
+      await agent.com.atproto.repo.describeRepo({
+        repo: did,
+      });
+    } catch (describeError) {
+      console.error("Repo describe failed:", describeError);
+      bookmarks = [];
+      renderBookmarks();
+      updateConnectionStatus("connected");
+      alert("User has no bookmarks or bookmarks are not accessible");
+      return;
+    }
+    
+    const response = await agent.com.atproto.repo.listRecords({
+      repo: did,
       collection: BOOKMARK_LEXICON,
     });
 
     bookmarks = response.data.records.map(record => ({
-      uri: record.uri,
+      atUri: record.uri,  // AT Protocol record URI
       cid: record.cid,
-      ...record.value
+      ...record.value     // Contains subject, title, tags, etc.
     }));
 
     renderBookmarks();
     updateConnectionStatus("connected");
   } catch (error) {
     console.error("Failed to load bookmarks:", error);
-    updateConnectionStatus("disconnected");
+    if (error.message?.includes("Could not find repo") || error.message?.includes("not found") || error.message?.includes("RecordNotFound")) {
+      bookmarks = [];
+      renderBookmarks();
+      updateConnectionStatus("connected");
+      alert("User has no bookmarks with this lexicon");
+    } else {
+      updateConnectionStatus("disconnected");
+    }
   }
 }
 
@@ -174,17 +249,21 @@ async function saveBookmark() {
   const url = urlInput.value.trim();
   const rawTags = tagsInput.value.trim();
 
-  if (!title || !url || !atpAgent || !userDid) return;
+  if (!url || !atpAgent || !userDid) return;
 
   const tags = rawTags.split(",").map(t => t.trim()).filter(Boolean);
   
   const bookmarkRecord = {
     $type: BOOKMARK_LEXICON,
-    uri: url,
-    title,
+    subject: url,
     tags,
     createdAt: new Date().toISOString(),
   };
+  
+  // Add optional title if provided
+  if (title) {
+    bookmarkRecord.title = title;
+  }
 
   try {
     updateConnectionStatus("connecting");
@@ -197,7 +276,7 @@ async function saveBookmark() {
 
     // Add to local array
     bookmarks.push({
-      uri: response.data.uri,
+      atUri: response.data.uri,
       cid: response.data.cid,
       ...bookmarkRecord
     });
@@ -224,19 +303,32 @@ async function deleteBookmark(uri) {
   try {
     updateConnectionStatus("connecting");
     
+    console.log("Deleting bookmark with URI:", uri);
     const rkey = uri.split("/").pop();
-    await atpAgent.com.atproto.repo.deleteRecord({
+    console.log("Extracted rkey:", rkey);
+    
+    const deleteParams = {
       repo: userDid,
       collection: BOOKMARK_LEXICON,
       rkey,
-    });
+    };
+    console.log("Delete parameters:", deleteParams);
+    
+    const result = await atpAgent.com.atproto.repo.deleteRecord(deleteParams);
+    console.log("Delete result:", result);
 
+    console.log("Successfully deleted from PDS");
+    
     // Remove from local array
-    bookmarks = bookmarks.filter(bookmark => bookmark.uri !== uri);
+    const beforeCount = bookmarks.length;
+    bookmarks = bookmarks.filter(bookmark => bookmark.atUri !== uri);
+    console.log(`Removed from local array: ${beforeCount} -> ${bookmarks.length}`);
+    
     renderBookmarks();
     updateConnectionStatus("connected");
   } catch (error) {
     console.error("Failed to delete bookmark:", error);
+    alert("Failed to delete bookmark: " + error.message);
     updateConnectionStatus("disconnected");
   }
 }
@@ -267,10 +359,22 @@ function showLoginDialog() {
 }
 
 function showMainUI() {
-  openEmptyDialogBtn.style.display = "inline-block";
+  openEmptyDialogBtn.style.display = isViewingOtherUser ? "none" : "inline-block";
   sortToggleBtn.style.display = "inline-block";
   searchInput.style.display = "inline-block";
+  userSearchInput.style.display = "inline-block";
   logoutBtn.style.display = "inline-block";
+}
+
+function updateViewingUserUI() {
+  if (isViewingOtherUser) {
+    viewingUser.textContent = `Viewing: ${viewingUserHandle}`;
+    viewingUser.style.display = "inline";
+    openEmptyDialogBtn.style.display = "none";
+  } else {
+    viewingUser.style.display = "none";
+    openEmptyDialogBtn.style.display = atpAgent ? "inline-block" : "none";
+  }
 }
 
 // ====== Utility Functions ======
@@ -317,11 +421,11 @@ function renderBookmarks() {
   const displayBookmarks = reversedOrder ? bookmarks : [...bookmarks].reverse();
 
   displayBookmarks.forEach(bookmark => {
-    const title = bookmark.title;
-    const url = bookmark.uri;
+    const title = bookmark.title || bookmark.subject; // fallback to subject as title if no title
+    const url = bookmark.subject || bookmark.uri; // support both old and new schema
     const tags = bookmark.tags || [];
 
-    if (!title || !url) return;
+    if (!url) return;
 
     const displayTitle = title.replace(/^https?:\/\/(www\.)?/i, "");
     const [bgColor, fontColor] = getColorPairByTitle(title, COLOR_PAIRS);
@@ -333,19 +437,21 @@ function renderBookmarks() {
     container.style.color = fontColor;
     container.style.fontFamily = `'${fontFamily}', sans-serif`;
 
-    // Delete Button
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "delete-btn";
-    closeBtn.textContent = "x";
-    closeBtn.title = "Delete this bookmark";
-    closeBtn.addEventListener("click", e => {
-      e.stopPropagation();
-      e.preventDefault();
-      if (confirm("Delete this bookmark?")) {
-        deleteBookmark(bookmark.uri);
-      }
-    });
-    container.appendChild(closeBtn);
+    // Delete Button (only show for own bookmarks)
+    if (!isViewingOtherUser) {
+      const closeBtn = document.createElement("button");
+      closeBtn.className = "delete-btn";
+      closeBtn.textContent = "x";
+      closeBtn.title = "Delete this bookmark";
+      closeBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (confirm("Delete this bookmark?")) {
+          deleteBookmark(bookmark.atUri);
+        }
+      });
+      container.appendChild(closeBtn);
+    }
 
     // Anchor (bookmark link)
     const anchor = document.createElement("a");
@@ -491,6 +597,27 @@ function showParamsIfPresent() {
 loginBtn.addEventListener("click", login);
 logoutBtn.addEventListener("click", logout);
 
+// Guest view functionality
+guestViewBtn?.addEventListener("click", async () => {
+  const handle = guestSearchInput.value.trim();
+  if (!handle) return;
+  
+  updateConnectionStatus("connecting");
+  const result = await resolveHandle(handle);
+  if (result) {
+    isViewingOtherUser = true;
+    viewingUserDid = result.did;
+    viewingUserHandle = handle;
+    loginDialog.close();
+    showMainUI();
+    await loadBookmarks(result.did, result.pdsUrl);
+    updateViewingUserUI();
+  } else {
+    alert("User not found");
+    updateConnectionStatus("disconnected");
+  }
+});
+
 // Dialog
 saveBtn.addEventListener("click", saveBookmark);
 cancelBtn?.addEventListener("click", () => {
@@ -534,6 +661,33 @@ sortToggleBtn?.addEventListener("click", () => {
     sortToggleBtn.lastChild.textContent = " ▼";
   } else {
     sortToggleBtn.lastChild.textContent = " ▲";
+  }
+});
+
+// User search
+userSearchInput?.addEventListener("keypress", async (e) => {
+  if (e.key === "Enter") {
+    const handle = e.target.value.trim();
+    if (!handle) {
+      // Empty search - go back to own bookmarks
+      isViewingOtherUser = false;
+      viewingUserDid = null;
+      viewingUserHandle = null;
+      if (userDid) await loadBookmarks();
+      updateViewingUserUI();
+      return;
+    }
+    
+    const result = await resolveHandle(handle);
+    if (result) {
+      isViewingOtherUser = true;
+      viewingUserDid = result.did;
+      viewingUserHandle = handle;
+      await loadBookmarks(result.did, result.pdsUrl);
+      updateViewingUserUI();
+    } else {
+      alert("User not found");
+    }
   }
 });
 

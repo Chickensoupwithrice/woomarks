@@ -35,8 +35,18 @@
             class="param-input"
           />
         </div>
+        <div class="param-group">
+          <label for="guestSearchInput" class="param-label">Or view someone's bookmarks without login</label>
+          <input
+            type="text"
+            id="guestSearchInput"
+            class="param-input"
+            placeholder="username.bsky.social"
+          />
+        </div>
         <menu class="param-menu">
           <button id="loginBtn" type="button" class="param-btn dark">Login</button>
+          <button id="guestViewBtn" type="button" class="param-btn">View Bookmarks</button>
         </menu>
       </form>
     </dialog>
@@ -46,7 +56,15 @@
         <b><a id="headerTitle" href="">woomarks</a></b>
         <a href="./faq.html">FAQ</a>
         <span id="connectionStatus" class="connection-status"></span>
+        <span id="viewingUser" class="viewing-user" style="display: none;"></span>
       </div>
+      <input
+        type="text"
+        id="userSearchInput"
+        placeholder="user.bsky.social"
+        title="View another user's bookmarks"
+        style="display: none; margin-right: 0.5vw;"
+      />
       <button id="logoutBtn" class="param-btn" style="display: none;">Logout</button>
       <button id="openEmptyDialogBtn" data-umami-event="Open creation modal" class="param-btn"><span class="btn-text">Add</span> ➕</button>
 
