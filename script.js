@@ -35,6 +35,8 @@ let reversedOrder = false;
 let viewingUserDid = null;
 let viewingUserHandle = null;
 let isViewingOtherUser = false;
+let isListView = true;
+let currentSearchedUserProfile = null;
 
 // ====== DOM Elements ======
 const loginDialog = document.getElementById("loginDialog");
@@ -42,7 +44,8 @@ const handleInput = document.getElementById("handleInput");
 const passwordInput = document.getElementById("passwordInput");
 const loginBtn = document.getElementById("loginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
-const connectionStatus = document.getElementById("connectionStatus");
+const userAvatar = document.getElementById("userAvatar");
+const searchedUserAvatar = document.getElementById("searchedUserAvatar");
 
 const dialog = document.getElementById("paramDialog");
 const titleInput = document.getElementById("paramTitle");
@@ -53,6 +56,7 @@ const cancelBtn = document.getElementById("cancelBtn");
 const openEmptyDialogBtn = document.getElementById("openEmptyDialogBtn");
 const searchInput = document.getElementById("searchInput");
 const sortToggleBtn = document.getElementById("sortToggleBtn");
+const viewToggleBtn = document.getElementById("viewToggleBtn");
 const userSearchInput = document.getElementById("userSearchInput");
 const viewingUser = document.getElementById("viewingUser");
 const guestSearchInput = document.getElementById("guestSearchInput");
@@ -115,14 +119,13 @@ async function initializeATProto() {
     await atpAgent.resumeSession(JSON.parse(session));
     userDid = atpAgent.session.did;
     
-    updateConnectionStatus("connected");
-    showMainUI();
+    await updateUIForLoggedInState();
     await loadBookmarks();
     return true;
   } catch (error) {
     console.error("Failed to resume session:", error);
     localStorage.removeItem("atproto_session");
-    showLoginDialog();
+    updateUIForLoggedOutState();
     return false;
   }
 }
@@ -136,8 +139,6 @@ async function login() {
 
   if (!handle || !password) return;
 
-  updateConnectionStatus("connecting");
-  
   try {
     atpAgent = new window.AtpAgent({
       service: "https://bsky.social",
@@ -151,14 +152,33 @@ async function login() {
     userDid = atpAgent.session.did;
     localStorage.setItem("atproto_session", JSON.stringify(atpAgent.session));
     
-    updateConnectionStatus("connected");
     loginDialog.close();
-    showMainUI();
+    await updateUIForLoggedInState();
     await loadBookmarks();
   } catch (error) {
     console.error("Login failed:", error);
-    updateConnectionStatus("disconnected");
     alert("Login failed. Please check your credentials.");
+  }
+}
+
+/**
+ * Fetch user profile information
+ */
+async function fetchUserProfile(did) {
+  // Try to use the logged-in agent first, fallback to public agent
+  let agent = atpAgent;
+  if (!agent) {
+    agent = new window.AtpAgent({
+      service: "https://bsky.social",
+    });
+  }
+  
+  try {
+    const response = await agent.getProfile({ actor: did });
+    return response.data;
+  } catch (error) {
+    console.error("Failed to fetch user profile:", error);
+    return null;
   }
 }
 
@@ -178,8 +198,7 @@ async function logout() {
   userDid = null;
   bookmarks = [];
   localStorage.removeItem("atproto_session");
-  updateConnectionStatus("disconnected");
-  showLoginDialog();
+  updateUIForLoggedOutState();
 }
 
 /**
@@ -199,8 +218,6 @@ async function loadBookmarks(targetDid = null, targetPdsUrl = null) {
   }
 
   try {
-    updateConnectionStatus("connecting");
-    
     // First try to describe the repo to see if it exists
     try {
       await agent.com.atproto.repo.describeRepo({
@@ -210,7 +227,6 @@ async function loadBookmarks(targetDid = null, targetPdsUrl = null) {
       console.error("Repo describe failed:", describeError);
       bookmarks = [];
       renderBookmarks();
-      updateConnectionStatus("connected");
       alert("User has no bookmarks or bookmarks are not accessible");
       return;
     }
@@ -227,16 +243,12 @@ async function loadBookmarks(targetDid = null, targetPdsUrl = null) {
     }));
 
     renderBookmarks();
-    updateConnectionStatus("connected");
   } catch (error) {
     console.error("Failed to load bookmarks:", error);
     if (error.message?.includes("Could not find repo") || error.message?.includes("not found") || error.message?.includes("RecordNotFound")) {
       bookmarks = [];
       renderBookmarks();
-      updateConnectionStatus("connected");
       alert("User has no bookmarks with this lexicon");
-    } else {
-      updateConnectionStatus("disconnected");
     }
   }
 }
@@ -266,8 +278,6 @@ async function saveBookmark() {
   }
 
   try {
-    updateConnectionStatus("connecting");
-    
     const response = await atpAgent.com.atproto.repo.createRecord({
       repo: userDid,
       collection: BOOKMARK_LEXICON,
@@ -283,13 +293,11 @@ async function saveBookmark() {
 
     renderBookmarks();
     dialog.close();
-    updateConnectionStatus("connected");
     
     // Clear URL params and reload to clean state
     window.history.replaceState({}, document.title, window.location.pathname);
   } catch (error) {
     console.error("Failed to save bookmark:", error);
-    updateConnectionStatus("disconnected");
     alert("Failed to save bookmark. Please try again.");
   }
 }
@@ -301,8 +309,6 @@ async function deleteBookmark(uri) {
   if (!atpAgent || !userDid) return;
 
   try {
-    updateConnectionStatus("connecting");
-    
     console.log("Deleting bookmark with URI:", uri);
     const rkey = uri.split("/").pop();
     console.log("Extracted rkey:", rkey);
@@ -325,55 +331,75 @@ async function deleteBookmark(uri) {
     console.log(`Removed from local array: ${beforeCount} -> ${bookmarks.length}`);
     
     renderBookmarks();
-    updateConnectionStatus("connected");
   } catch (error) {
     console.error("Failed to delete bookmark:", error);
     alert("Failed to delete bookmark: " + error.message);
-    updateConnectionStatus("disconnected");
   }
 }
 
 // ====== UI Functions ======
 
-function updateConnectionStatus(status) {
-  connectionStatus.className = `connection-status ${status}`;
-  switch (status) {
-    case "connected":
-      connectionStatus.textContent = "Connected";
-      break;
-    case "connecting":
-      connectionStatus.textContent = "Connecting...";
-      break;
-    case "disconnected":
-      connectionStatus.textContent = "Disconnected";
-      break;
+async function updateUIForLoggedInState() {
+  if (!userDid || !atpAgent) return;
+  
+  // Fetch and display user avatar
+  const profile = await fetchUserProfile(userDid);
+  if (profile && profile.avatar) {
+    userAvatar.src = profile.avatar;
+    userAvatar.style.display = "inline-block";
+  } else {
+    userAvatar.style.display = "none";
   }
+  
+  // Update button to show logout
+  logoutBtn.textContent = "Logout";
+  logoutBtn.style.display = "inline-block";
+  
+  showMainUI();
+}
+
+function updateUIForLoggedOutState() {
+  // Hide avatar
+  userAvatar.style.display = "none";
+  
+  // Update button to show login
+  logoutBtn.textContent = "Login";
+  logoutBtn.style.display = "inline-block";
+  
+  showLoginDialog();
 }
 
 function showLoginDialog() {
   loginDialog.showModal();
   openEmptyDialogBtn.style.display = "none";
   sortToggleBtn.style.display = "none";
+  viewToggleBtn.style.display = "none";
   searchInput.style.display = "none";
-  logoutBtn.style.display = "none";
 }
 
 function showMainUI() {
   openEmptyDialogBtn.style.display = isViewingOtherUser ? "none" : "inline-block";
   sortToggleBtn.style.display = "inline-block";
+  viewToggleBtn.style.display = "inline-block";
   searchInput.style.display = "inline-block";
   userSearchInput.style.display = "inline-block";
-  logoutBtn.style.display = "inline-block";
 }
 
 function updateViewingUserUI() {
   if (isViewingOtherUser) {
-    viewingUser.textContent = `Viewing: ${viewingUserHandle}`;
-    viewingUser.style.display = "inline";
+    // Don't show "Viewing: ..." text anymore
+    viewingUser.style.display = "none";
     openEmptyDialogBtn.style.display = "none";
+    // Show searched user avatar if we have profile data
+    if (currentSearchedUserProfile && currentSearchedUserProfile.avatar) {
+      searchedUserAvatar.src = currentSearchedUserProfile.avatar;
+      searchedUserAvatar.style.display = "inline-block";
+    }
   } else {
     viewingUser.style.display = "none";
     openEmptyDialogBtn.style.display = atpAgent ? "inline-block" : "none";
+    searchedUserAvatar.style.display = "none"; // Hide searched user avatar when back to own bookmarks
+    currentSearchedUserProfile = null;
   }
 }
 
@@ -408,12 +434,157 @@ function getFontByTitle(title, fonts) {
   return fonts[hashString(title) % fonts.length];
 }
 
+/**
+ * Format date as natural language for recent dates, otherwise as regular date
+ */
+function formatNaturalDate(dateString) {
+  if (!dateString) return '';
+  
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  // If it's within the last month (30 days)
+  if (diffDays < 30) {
+    if (diffDays === 0) {
+      return 'today';
+    } else if (diffDays === 1) {
+      return 'yesterday';
+    } else {
+      return `${diffDays} days ago`;
+    }
+  }
+  
+  // For older dates, show the actual date
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+}
+
 // ====== Rendering Functions ======
 
 /**
- * Renders bookmark containers
+ * Renders bookmarks in list view
  */
-function renderBookmarks() {
+function renderListView() {
+  const containerWrapper = document.querySelector(".containers");
+  containerWrapper.innerHTML = "";
+
+  const fragment = document.createDocumentFragment();
+  const displayBookmarks = reversedOrder ? bookmarks : [...bookmarks].reverse();
+
+  displayBookmarks.forEach(bookmark => {
+    const title = bookmark.title || bookmark.subject;
+    const url = bookmark.subject || bookmark.uri;
+    const tags = bookmark.tags || [];
+    const createdAt = bookmark.createdAt;
+
+    if (!url) return;
+
+    const displayTitle = title.replace(/^https?:\/\/(www\.)?/i, "");
+    
+    // Create list item
+    const listItem = document.createElement("div");
+    listItem.className = "bookmark-item";
+
+    // Content container
+    const content = document.createElement("div");
+    content.className = "bookmark-content";
+
+    // Link group (title + URL together, but not date)
+    const linkGroup = document.createElement("div");
+    linkGroup.className = "bookmark-link-group";
+
+    // Title link
+    const titleLink = document.createElement("a");
+    titleLink.className = "bookmark-title";
+    titleLink.href = url;
+    titleLink.target = "_blank";
+    titleLink.textContent = displayTitle;
+    linkGroup.appendChild(titleLink);
+
+    // URL-only container (without date)
+    const urlContainer = document.createElement("div");
+    urlContainer.className = "bookmark-url-container";
+    
+    const urlLink = document.createElement("a");
+    urlLink.className = "bookmark-url";
+    urlLink.href = url;
+    urlLink.target = "_blank";
+    urlLink.textContent = url;
+    urlLink.style.textDecoration = "none";
+    urlLink.style.color = "#666";
+    urlContainer.appendChild(urlLink);
+
+    linkGroup.appendChild(urlContainer);
+    content.appendChild(linkGroup);
+
+    // Meta row for date and tags (outside hover group)
+    const metaRow = document.createElement("div");
+    metaRow.className = "bookmark-meta-row";
+
+    // Tags on the left
+    if (tags.length > 0) {
+      const tagsDiv = document.createElement("div");
+      tagsDiv.className = "bookmark-tags";
+
+      tags.forEach(tag => {
+        const tagSpan = document.createElement("span");
+        tagSpan.className = "bookmark-tag";
+        tagSpan.textContent = `#${tag}`;
+        tagSpan.addEventListener("click", () => filterByTag(tag));
+        tagsDiv.appendChild(tagSpan);
+      });
+
+      metaRow.appendChild(tagsDiv);
+    }
+
+    // Date on the right
+    if (createdAt) {
+      const dateDiv = document.createElement("div");
+      dateDiv.className = "bookmark-date";
+      dateDiv.textContent = formatNaturalDate(createdAt);
+      metaRow.appendChild(dateDiv);
+    }
+
+    content.appendChild(metaRow);
+
+    listItem.appendChild(content);
+
+    // Actions (delete button)
+    if (!isViewingOtherUser) {
+      const actions = document.createElement("div");
+      actions.className = "bookmark-actions";
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete-btn";
+      deleteBtn.textContent = "×";
+      deleteBtn.title = "Delete this bookmark";
+      deleteBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (confirm("Delete this bookmark?")) {
+          deleteBookmark(bookmark.atUri);
+        }
+      });
+
+      actions.appendChild(deleteBtn);
+      listItem.appendChild(actions);
+    }
+
+    fragment.appendChild(listItem);
+  });
+
+  containerWrapper.appendChild(fragment);
+}
+
+/**
+ * Renders bookmarks in grid view (original)
+ */
+function renderGridView() {
   const containerWrapper = document.querySelector(".containers");
   containerWrapper.innerHTML = "";
 
@@ -481,6 +652,20 @@ function renderBookmarks() {
 
   containerWrapper.appendChild(fragment);
   runTextFormatting();
+}
+
+/**
+ * Renders bookmark containers
+ */
+function renderBookmarks() {
+  // Toggle body class for CSS styling
+  document.body.classList.toggle('list-view', isListView);
+  
+  if (isListView) {
+    renderListView();
+  } else {
+    renderGridView();
+  }
 }
 
 /**
@@ -559,19 +744,36 @@ function debounce(fn, delay) {
 function runSearch(term) {
   const searchTerm = term.toLowerCase();
 
-  document.querySelectorAll(".container").forEach(container => {
-    if (searchTerm.startsWith("#")) {
-      const tagToSearch = searchTerm.slice(1);
-      const tags = Array.from(container.querySelectorAll(".tags"))
-        .map(el => el.textContent.toLowerCase().replace("#", "").trim());
+  if (isListView) {
+    document.querySelectorAll(".bookmark-item").forEach(item => {
+      if (searchTerm.startsWith("#")) {
+        const tagToSearch = searchTerm.slice(1);
+        const tags = Array.from(item.querySelectorAll(".bookmark-tag"))
+          .map(el => el.textContent.toLowerCase().replace("#", "").trim());
 
-      container.style.display = tags.some(tag => tag.includes(tagToSearch)) ? "block" : "none";
-    } else {
-      const anchor = container.querySelector("a");
-      const title = anchor?.innerText.toLowerCase() || "";
-      container.style.display = title.includes(searchTerm) ? "block" : "none";
-    }
-  });
+        item.style.display = tags.some(tag => tag.includes(tagToSearch)) ? "flex" : "none";
+      } else {
+        const title = item.querySelector(".bookmark-title")?.textContent.toLowerCase() || "";
+        const url = item.querySelector(".bookmark-url")?.textContent.toLowerCase() || "";
+        const matches = title.includes(searchTerm) || url.includes(searchTerm);
+        item.style.display = matches ? "flex" : "none";
+      }
+    });
+  } else {
+    document.querySelectorAll(".container").forEach(container => {
+      if (searchTerm.startsWith("#")) {
+        const tagToSearch = searchTerm.slice(1);
+        const tags = Array.from(container.querySelectorAll(".tags"))
+          .map(el => el.textContent.toLowerCase().replace("#", "").trim());
+
+        container.style.display = tags.some(tag => tag.includes(tagToSearch)) ? "block" : "none";
+      } else {
+        const anchor = container.querySelector("a");
+        const title = anchor?.innerText.toLowerCase() || "";
+        container.style.display = title.includes(searchTerm) ? "block" : "none";
+      }
+    });
+  }
 }
 
 /**
@@ -595,14 +797,19 @@ function showParamsIfPresent() {
 
 // Login/logout
 loginBtn.addEventListener("click", login);
-logoutBtn.addEventListener("click", logout);
+logoutBtn.addEventListener("click", () => {
+  if (atpAgent) {
+    logout();
+  } else {
+    showLoginDialog();
+  }
+});
 
 // Guest view functionality
 guestViewBtn?.addEventListener("click", async () => {
   const handle = guestSearchInput.value.trim();
   if (!handle) return;
   
-  updateConnectionStatus("connecting");
   const result = await resolveHandle(handle);
   if (result) {
     isViewingOtherUser = true;
@@ -614,7 +821,6 @@ guestViewBtn?.addEventListener("click", async () => {
     updateViewingUserUI();
   } else {
     alert("User not found");
-    updateConnectionStatus("disconnected");
   }
 });
 
@@ -664,6 +870,24 @@ sortToggleBtn?.addEventListener("click", () => {
   }
 });
 
+// View toggle
+viewToggleBtn?.addEventListener("click", () => {
+  isListView = !isListView;
+  renderBookmarks();
+
+  if (isListView) {
+    viewToggleBtn.innerHTML = '<span class="btn-text">Grid</span> ⊞';
+  } else {
+    viewToggleBtn.innerHTML = '<span class="btn-text">List</span> ☰';
+  }
+
+  // Re-apply current search
+  const currentSearch = searchInput.value.trim();
+  if (currentSearch) {
+    runSearch(currentSearch);
+  }
+});
+
 // User search
 userSearchInput?.addEventListener("keypress", async (e) => {
   if (e.key === "Enter") {
@@ -683,6 +907,10 @@ userSearchInput?.addEventListener("keypress", async (e) => {
       isViewingOtherUser = true;
       viewingUserDid = result.did;
       viewingUserHandle = handle;
+      
+      // Fetch user profile for avatar
+      currentSearchedUserProfile = await fetchUserProfile(result.did);
+      
       await loadBookmarks(result.did, result.pdsUrl);
       updateViewingUserUI();
     } else {
@@ -691,11 +919,11 @@ userSearchInput?.addEventListener("keypress", async (e) => {
   }
 });
 
+
+
 // ====== Initialization ======
 
 document.addEventListener("DOMContentLoaded", async () => {
-  updateConnectionStatus("disconnected");
-  
   // Wait for AtpAgent to be loaded
   let attempts = 0;
   while (!window.AtpAgent && attempts < 50) {
@@ -705,7 +933,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   
   if (!window.AtpAgent) {
     console.error("Failed to load AtpAgent");
-    updateConnectionStatus("disconnected");
     return;
   }
   

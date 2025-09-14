@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>woomarks</title>
+    <title>bluemarks</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Doto&family=Alfa+Slab+One&family=Bebas+Neue&family=Bree+Serif&family=Caveat&family=Courier+Prime&family=Dosis&family=EB+Garamond&family=Permanent+Marker&family=Sedan+SC&family=Ultra&display=swap"
       rel="stylesheet"
@@ -53,11 +53,12 @@
 
     <div class="topbar">
       <div style="flex-grow: 1">
-        <b><a id="headerTitle" href="">woomarks</a></b>
-        <a href="./faq.html">FAQ</a>
-        <span id="connectionStatus" class="connection-status"></span>
+        <b><a id="headerTitle" href="">bluemarks</a></b>
+        <img id="userAvatar" class="user-avatar" style="display: none;" />
+        <button id="logoutBtn" class="param-btn">Login</button>
         <span id="viewingUser" class="viewing-user" style="display: none;"></span>
       </div>
+      <img id="searchedUserAvatar" class="searched-user-avatar" style="display: none;" />
       <input
         type="text"
         id="userSearchInput"
@@ -65,9 +66,9 @@
         title="View another user's bookmarks"
         style="display: none; margin-right: 0.5vw;"
       />
-      <button id="logoutBtn" class="param-btn" style="display: none;">Logout</button>
       <button id="openEmptyDialogBtn" data-umami-event="Open creation modal" class="param-btn"><span class="btn-text">Add</span> ➕</button>
 
+      <button id="viewToggleBtn" class="param-btn"><span class="btn-text">Grid</span> ⊞</button>
       <button id="sortToggleBtn" data-umami-event="Sort" class="param-btn"><span class="btn-text">Sort</span> ▲</button>
       <input
         type="text"
