@@ -27,23 +27,6 @@
             placeholder="user.bsky.social"
           />
         </div>
-        <div class="param-group">
-          <label for="passwordInput" class="param-label">Password</label>
-          <input
-            type="password"
-            id="passwordInput"
-            class="param-input"
-          />
-        </div>
-        <div class="param-group">
-          <label for="guestSearchInput" class="param-label">Or view someone's bookmarks without login</label>
-          <input
-            type="text"
-            id="guestSearchInput"
-            class="param-input"
-            placeholder="username.bsky.social"
-          />
-        </div>
         <menu class="param-menu">
           <button id="loginBtn" type="button" class="param-btn dark">Login</button>
           <button id="guestViewBtn" type="button" class="param-btn">View Bookmarks</button>
@@ -144,8 +127,11 @@
     </dialog>
   </body>
   <script type="module">
-    import { AtpAgent } from 'https://esm.sh/@atproto/api';
+    import { AtpAgent, Agent } from 'https://esm.sh/@atproto/api';
+    import { BrowserOAuthClient } from 'https://esm.sh/@atproto/oauth-client-browser';
     window.AtpAgent = AtpAgent;
+    window.Agent = Agent;
+    window.BrowserOAuthClient = BrowserOAuthClient;
   </script>
   <script async src="./script.js"></script>
 </html>
