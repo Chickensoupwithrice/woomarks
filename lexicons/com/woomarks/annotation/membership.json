@@ -1,0 +1,58 @@
+{
+  "lexicon": 1,
+  "id": "com.woomarks.annotation.membership",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Membership in an annotation group with role-based permissions",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["group", "member", "role", "createdAt"],
+        "properties": {
+          "group": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Reference to the group"
+          },
+          "member": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the member"
+          },
+          "role": {
+            "type": "string",
+            "knownValues": ["owner", "admin", "moderator", "member"],
+            "default": "member",
+            "description": "Member's role. owner: full control. admin: manage members/settings. moderator: manage content. member: standard access"
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["active", "pending", "suspended"],
+            "default": "active",
+            "description": "Membership status. pending: awaiting approval. suspended: temporarily revoked"
+          },
+          "invitedBy": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of member who invited this user"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "suspendedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When membership was suspended"
+          },
+          "suspendedReason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Reason for suspension"
+          }
+        }
+      }
+    }
+  }
+}

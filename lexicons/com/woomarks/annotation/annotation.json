@@ -1,0 +1,383 @@
+{
+  "lexicon": 1,
+  "id": "com.woomarks.annotation.annotation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A W3C-compliant web annotation record. Core entity for annotating web resources with highlights, comments, tags, and replies.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["target", "createdAt"],
+        "properties": {
+          "target": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#target"
+            },
+            "minLength": 1,
+            "maxLength": 10,
+            "description": "The resource(s) being annotated. W3C: target property"
+          },
+          "body": {
+            "type": "array",
+            "items": {
+              "type": "union",
+              "refs": ["#textualBody", "#externalBody"]
+            },
+            "maxLength": 20,
+            "description": "The content of the annotation (comment text, tags, etc). W3C: body property"
+          },
+          "motivation": {
+            "type": "string",
+            "knownValues": [
+              "assessing",
+              "bookmarking",
+              "classifying",
+              "commenting",
+              "describing",
+              "editing",
+              "highlighting",
+              "identifying",
+              "linking",
+              "moderating",
+              "questioning",
+              "replying",
+              "tagging"
+            ],
+            "default": "commenting",
+            "description": "The reason for creating the annotation. W3C: motivation property"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "maxLength": 100,
+            "description": "Thread ancestry: [root, parent, grandparent, ...]. First item is thread root, last is direct parent. Empty for top-level annotations."
+          },
+          "visibility": {
+            "type": "string",
+            "knownValues": ["public", "group", "private"],
+            "default": "public",
+            "description": "Who can read this annotation. Maps to W3C audience/permissions"
+          },
+          "groupUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Reference to annotation group/community. Required if visibility is 'group'"
+          },
+          "document": {
+            "type": "ref",
+            "ref": "#documentMetadata",
+            "description": "Metadata about the document being annotated"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "maxLength": 50,
+            "description": "Tags for categorization. Alternative to using tagging body items"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "W3C: created property"
+          },
+          "modifiedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "W3C: modified property"
+          },
+          "canonical": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical identifier for the annotation. W3C: canonical property"
+          },
+          "via": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "maxLength": 5,
+            "description": "IRIs from which annotation was obtained. W3C: via property"
+          },
+          "rights": {
+            "type": "string",
+            "format": "uri",
+            "description": "License or rights statement. W3C: rights property"
+          },
+          "stylesheet": {
+            "type": "ref",
+            "ref": "#cssStylesheet",
+            "description": "CSS stylesheet for rendering this annotation. W3C: stylesheet property"
+          }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "description": "W3C SpecificResource: describes what is being annotated",
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 8000,
+          "description": "URI of the resource being annotated"
+        },
+        "selector": {
+          "type": "array",
+          "items": {
+            "type": "union",
+            "refs": [
+              "com.woomarks.annotation.defs#textQuoteSelector",
+              "com.woomarks.annotation.defs#textPositionSelector",
+              "com.woomarks.annotation.defs#rangeSelector",
+              "com.woomarks.annotation.defs#fragmentSelector",
+              "com.woomarks.annotation.defs#cssSelector",
+              "com.woomarks.annotation.defs#xpathSelector",
+              "com.woomarks.annotation.defs#dataPositionSelector",
+              "com.woomarks.annotation.defs#svgSelector",
+              "com.woomarks.annotation.defs#pageSelector",
+              "com.woomarks.annotation.defs#mediaTimeSelector",
+              "com.woomarks.annotation.defs#epubContentSelector"
+            ]
+          },
+          "maxLength": 10,
+          "description": "How to locate the specific segment. Multiple selectors provide fallback options"
+        },
+        "state": {
+          "type": "union",
+          "refs": [
+            "com.woomarks.annotation.defs#timeState",
+            "com.woomarks.annotation.defs#httpRequestState"
+          ],
+          "description": "State of resource when annotated (e.g., timestamp, HTTP headers)"
+        },
+        "styleClass": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "CSS class to apply when rendering. W3C: styleClass property"
+        },
+        "scope": {
+          "type": "string",
+          "format": "uri",
+          "description": "Context in which the source was viewed. W3C: scope property"
+        },
+        "format": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "MIME type of the source (e.g., 'text/html', 'application/pdf')"
+        },
+        "language": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "BCP47 language code of the source content"
+        },
+        "processingLanguage": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "BCP47 language for text processing"
+        },
+        "textDirection": {
+          "type": "string",
+          "knownValues": ["ltr", "rtl", "auto"],
+          "description": "Text direction of the source"
+        }
+      }
+    },
+    "textualBody": {
+      "type": "object",
+      "description": "W3C TextualBody: embedded text content",
+      "required": ["value"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "TextualBody"
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 10000,
+          "maxGraphemes": 5000,
+          "description": "The text content"
+        },
+        "format": {
+          "type": "string",
+          "knownValues": ["text/plain", "text/html", "text/markdown"],
+          "default": "text/markdown",
+          "description": "Format of the text"
+        },
+        "language": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "BCP47 language code"
+        },
+        "purpose": {
+          "type": "string",
+          "knownValues": [
+            "tagging",
+            "commenting",
+            "describing",
+            "replying",
+            "assessing",
+            "classifying",
+            "identifying",
+            "moderating",
+            "questioning"
+          ],
+          "description": "Purpose of this body item"
+        }
+      }
+    },
+    "externalBody": {
+      "type": "object",
+      "description": "W3C External Web Resource: reference to external content",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uri",
+          "description": "IRI of the external resource"
+        },
+        "format": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "MIME type"
+        },
+        "language": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "BCP47 language code"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Purpose of including this body"
+        }
+      }
+    },
+    "documentMetadata": {
+      "type": "object",
+      "description": "Metadata about the document being annotated",
+      "properties": {
+        "title": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "maxLength": 5,
+          "description": "Document titles (may have multiple)"
+        },
+        "link": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#documentLink"
+          },
+          "maxLength": 20,
+          "description": "Related URIs (canonical, DOI, etc.)"
+        },
+        "doi": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "maxLength": 5,
+          "description": "Digital Object Identifiers"
+        },
+        "pdfFingerprint": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "PDF fingerprint for document identification"
+        },
+        "highwire": {
+          "type": "object",
+          "description": "Highwire Press metadata",
+          "properties": {
+            "doi": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "pdf_url": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "dc": {
+          "type": "object",
+          "description": "Dublin Core metadata",
+          "properties": {
+            "identifier": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "title": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "eprints": {
+          "type": "object",
+          "description": "EPrints metadata"
+        },
+        "facebook": {
+          "type": "object",
+          "description": "Facebook Open Graph metadata"
+        },
+        "twitter": {
+          "type": "object",
+          "description": "Twitter Card metadata"
+        }
+      }
+    },
+    "documentLink": {
+      "type": "object",
+      "required": ["href"],
+      "properties": {
+        "href": {
+          "type": "string",
+          "format": "uri",
+          "description": "The linked URI"
+        },
+        "rel": {
+          "type": "string",
+          "knownValues": ["canonical", "alternate", "self-claim", "doi"],
+          "description": "Relationship type"
+        },
+        "type": {
+          "type": "string",
+          "description": "MIME type of the linked resource"
+        }
+      }
+    },
+    "cssStylesheet": {
+      "type": "object",
+      "description": "W3C CssStylesheet for annotation rendering",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "CssStylesheet"
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 10000,
+          "description": "CSS content (if embedded)"
+        },
+        "id": {
+          "type": "string",
+          "format": "uri",
+          "description": "IRI of external stylesheet"
+        }
+      }
+    }
+  }
+}

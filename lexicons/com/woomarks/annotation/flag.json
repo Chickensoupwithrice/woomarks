@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "com.woomarks.annotation.flag",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Flag/report an annotation for moderation review",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "createdAt"],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The annotation being flagged"
+          },
+          "reason": {
+            "type": "string",
+            "knownValues": [
+              "spam",
+              "abuse",
+              "harassment",
+              "off-topic",
+              "misinformation",
+              "hate-speech",
+              "illegal-content",
+              "other"
+            ],
+            "description": "Reason for flagging"
+          },
+          "details": {
+            "type": "string",
+            "maxLength": 2000,
+            "maxGraphemes": 1000,
+            "description": "Additional details about the flag"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

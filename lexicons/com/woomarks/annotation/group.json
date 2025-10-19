@@ -1,0 +1,106 @@
+{
+  "lexicon": 1,
+  "id": "com.woomarks.annotation.group",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An annotation group/community. Provides scoped collaboration spaces with controlled membership and visibility.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "groupType", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "maxGraphemes": 100,
+            "description": "Display name of the group"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "maxGraphemes": 1000,
+            "description": "Description of the group's purpose"
+          },
+          "groupType": {
+            "type": "string",
+            "knownValues": ["open", "restricted", "private"],
+            "description": "open: world-readable, authority-controlled write. restricted: world-readable, members-only write. private: members-only read/write"
+          },
+          "joinableBy": {
+            "type": "string",
+            "knownValues": ["anyone", "request", "invitation"],
+            "default": "request",
+            "description": "Who can join the group"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#scope"
+            },
+            "maxLength": 100,
+            "description": "URL patterns restricting where annotations can be made"
+          },
+          "enforceScope": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to strictly enforce scope restrictions"
+          },
+          "preModerated": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether annotations require approval before becoming visible"
+          },
+          "avatar": {
+            "type": "blob",
+            "accept": ["image/png", "image/jpeg", "image/webp"],
+            "maxSize": 1000000,
+            "description": "Group avatar image"
+          },
+          "banner": {
+            "type": "blob",
+            "accept": ["image/png", "image/jpeg", "image/webp"],
+            "maxSize": 2000000,
+            "description": "Group banner image"
+          },
+          "rules": {
+            "type": "string",
+            "maxLength": 10000,
+            "maxGraphemes": 5000,
+            "description": "Group rules and guidelines (markdown)"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "com.atproto.label.defs#label"
+            },
+            "description": "Self-applied labels (e.g., language, subject matter)"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "description": "URL pattern restricting annotation locations",
+      "required": ["pattern"],
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "URL pattern (e.g., 'https://example.com/docs/*')"
+        },
+        "originOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Match only on origin, not full path"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "lexicon": 1,
+  "id": "com.woomarks.annotation.search",
+  "defs": {
+    "query": {
+      "type": "query",
+      "description": "Search for annotations with flexible filtering",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "Exact URI match"
+          },
+          "wildcardUri": {
+            "type": "string",
+            "description": "URI with wildcards (e.g., 'https://example.com/*')"
+          },
+          "group": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Filter by group"
+          },
+          "user": {
+            "type": "string",
+            "format": "did",
+            "description": "Filter by user DID"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by tags (AND logic)"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Full-text search in annotation body"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Search in quoted/selected text"
+          },
+          "any": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Search across quote/tags/text/url"
+          },
+          "references": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Find replies to a specific annotation"
+          },
+          "motivation": {
+            "type": "string",
+            "description": "Filter by motivation"
+          },
+          "sort": {
+            "type": "string",
+            "knownValues": ["created", "updated", "user"],
+            "default": "created",
+            "description": "Sort field"
+          },
+          "order": {
+            "type": "string",
+            "knownValues": ["asc", "desc"],
+            "default": "desc",
+            "description": "Sort order"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20,
+            "description": "Result limit"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor"
+          },
+          "separateReplies": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return top-level annotations and replies separately"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#searchResults"
+        }
+      }
+    },
+    "searchResults": {
+      "type": "object",
+      "required": ["annotations"],
+      "properties": {
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "com.woomarks.annotation.annotation"
+          }
+        },
+        "replies": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "com.woomarks.annotation.annotation"
+          },
+          "description": "Separate reply list if separateReplies=true"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for next page"
+        },
+        "total": {
+          "type": "integer",
+          "description": "Total matching annotations (if available)"
+        }
+      }
+    }
+  }
+}

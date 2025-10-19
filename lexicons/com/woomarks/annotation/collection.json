@@ -1,0 +1,62 @@
+{
+  "lexicon": 1,
+  "id": "com.woomarks.annotation.collection",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "W3C AnnotationCollection: an ordered collection of annotations",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["label", "createdAt"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 500,
+            "maxGraphemes": 250,
+            "description": "Display label for this collection"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "maxGraphemes": 1000,
+            "description": "Description of the collection's purpose or contents"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "maxLength": 10000,
+            "description": "Ordered list of annotation URIs"
+          },
+          "creator": {
+            "type": "string",
+            "format": "did",
+            "description": "Creator of this collection (defaults to record author)"
+          },
+          "visibility": {
+            "type": "string",
+            "knownValues": ["public", "group", "private"],
+            "default": "public",
+            "description": "Who can view this collection"
+          },
+          "groupUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Associated group if visibility is 'group'"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "modifiedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

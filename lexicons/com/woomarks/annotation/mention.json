@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "com.woomarks.annotation.mention",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A mention of a user in an annotation (creates notification)",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["annotation", "mentioned", "createdAt"],
+        "properties": {
+          "annotation": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The annotation containing the mention"
+          },
+          "mentioned": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the mentioned user"
+          },
+          "mentionedHandle": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Handle at time of mention (for display if user changes handle)"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Character position of mention in annotation text"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}
