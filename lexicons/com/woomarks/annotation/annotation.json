@@ -35,18 +35,6 @@
             "maxLength": 50,
             "description": "Tags for categorization"
           },
-          "motivation": {
-            "type": "string",
-            "knownValues": [
-              "commenting",
-              "highlighting",
-              "tagging",
-              "bookmarking",
-              "questioning",
-              "assessing"
-            ],
-            "description": "The reason for creating the annotation (W3C: motivation)"
-          },
           "document": {
             "type": "ref",
             "ref": "#documentMetadata",
