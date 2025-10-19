@@ -40,23 +40,12 @@
             "knownValues": [
               "commenting",
               "highlighting",
-              "replying",
               "tagging",
               "bookmarking",
               "questioning",
               "assessing"
             ],
             "description": "The reason for creating the annotation (W3C: motivation)"
-          },
-          "replyTo": {
-            "type": "string",
-            "format": "at-uri",
-            "description": "AT-URI of the annotation being replied to (for threading)"
-          },
-          "replyRoot": {
-            "type": "string",
-            "format": "at-uri",
-            "description": "AT-URI of the root annotation in the thread"
           },
           "document": {
             "type": "ref",
