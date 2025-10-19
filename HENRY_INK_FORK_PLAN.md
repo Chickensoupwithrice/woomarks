@@ -187,13 +187,25 @@ export function getSelectors(annotation: Annotation): Selector[] {
 
 ### 2.2 Create Selector Generator
 
+**Note: Use Hypothesis Anchoring Libraries**
+
+Rather than implementing selector generation from scratch, use the battle-tested Hypothesis libraries:
+
+```bash
+npm install dom-anchor-text-quote dom-anchor-text-position
+```
+
+These libraries handle edge cases, Unicode normalization, and whitespace handling correctly.
+
 **Create: `src/lib/selectors/generateSelectors.ts`**
 
 ```typescript
+import * as textQuote from 'dom-anchor-text-quote';
+import * as textPosition from 'dom-anchor-text-position';
 import type { Selector, TextQuoteSelector, TextPositionSelector, RangeSelector } from '@/types/annotation';
 
 /**
- * Generate W3C selectors from a DOM selection
+ * Generate W3C selectors from a DOM selection using Hypothesis libraries
  */
 export function generateSelectors(selection: Selection): Selector[] {
   if (!selection.rangeCount) return [];
@@ -217,86 +229,52 @@ export function generateSelectors(selection: Selection): Selector[] {
 }
 
 /**
- * Generate TextQuoteSelector with context
+ * Generate TextQuoteSelector with context using Hypothesis library
  */
 function generateTextQuoteSelector(range: Range): TextQuoteSelector | null {
   const exact = range.toString().trim();
   if (!exact) return null;
   
-  // Get prefix context (up to 32 chars before)
-  const startNode = range.startContainer;
-  const startOffset = range.startOffset;
-  let prefix = '';
+  const root = document.querySelector('main') || document.body;
   
-  if (startNode.nodeType === Node.TEXT_NODE) {
-    const textContent = startNode.textContent || '';
-    const start = Math.max(0, startOffset - 32);
-    prefix = textContent.substring(start, startOffset);
+  try {
+    // Use Hypothesis library to generate selector with proper context
+    const selector = textQuote.fromRange(root, range);
+    
+    return {
+      type: 'TextQuoteSelector',
+      exact: selector.exact,
+      prefix: selector.prefix || undefined,
+      suffix: selector.suffix || undefined
+    };
+  } catch (error) {
+    console.warn('Failed to generate TextQuoteSelector:', error);
+    return null;
   }
-  
-  // Get suffix context (up to 32 chars after)
-  const endNode = range.endContainer;
-  const endOffset = range.endOffset;
-  let suffix = '';
-  
-  if (endNode.nodeType === Node.TEXT_NODE) {
-    const textContent = endNode.textContent || '';
-    const end = Math.min(textContent.length, endOffset + 32);
-    suffix = textContent.substring(endOffset, end);
-  }
-  
-  return {
-    type: 'TextQuoteSelector',
-    exact,
-    prefix: prefix || undefined,
-    suffix: suffix || undefined
-  };
 }
 
 /**
- * Generate TextPositionSelector with absolute character positions
+ * Generate TextPositionSelector using Hypothesis library
  */
 function generateTextPositionSelector(range: Range): TextPositionSelector | null {
   const exact = range.toString().trim();
   if (!exact) return null;
   
-  // Find the root container (usually body or main content area)
   const root = document.querySelector('main') || document.body;
   
-  const start = getAbsoluteTextPosition(root, range.startContainer, range.startOffset);
-  const end = start + exact.length;
-  
-  return {
-    type: 'TextPositionSelector',
-    start,
-    end
-  };
-}
-
-/**
- * Calculate absolute text position from root
- */
-function getAbsoluteTextPosition(
-  root: Node,
-  targetNode: Node,
-  targetOffset: number
-): number {
-  let position = 0;
-  const walker = document.createTreeWalker(
-    root,
-    NodeFilter.SHOW_TEXT,
-    null
-  );
-  
-  let currentNode: Node | null;
-  while ((currentNode = walker.nextNode())) {
-    if (currentNode === targetNode) {
-      return position + targetOffset;
-    }
-    position += (currentNode.textContent || '').length;
+  try {
+    // Use Hypothesis library for precise character position calculation
+    const selector = textPosition.fromRange(root, range);
+    
+    return {
+      type: 'TextPositionSelector',
+      start: selector.start,
+      end: selector.end
+    };
+  } catch (error) {
+    console.warn('Failed to generate TextPositionSelector:', error);
+    return null;
   }
-  
-  return position;
 }
 
 /**
@@ -360,14 +338,24 @@ function getXPath(node: Node): string | null {
 
 ### 2.3 Create Selector Matcher (Anchoring)
 
+**Note: Use Hypothesis Libraries for Matching**
+
+The Hypothesis libraries handle fuzzy matching, normalization, and edge cases:
+
+```bash
+npm install dom-anchor-text-quote dom-anchor-text-position
+```
+
 **Create: `src/lib/selectors/matchSelectors.ts`**
 
 ```typescript
+import * as textQuote from 'dom-anchor-text-quote';
+import * as textPosition from 'dom-anchor-text-position';
 import type { Selector, Annotation, TextQuoteSelector, TextPositionSelector, RangeSelector } from '@/types/annotation';
 
 /**
  * Find the DOM Range for an annotation using its selectors
- * Tries multiple strategies in order of precision
+ * Tries multiple strategies in order of precision using Hypothesis libraries
  */
 export function findAnnotationRange(
   annotation: Annotation,
@@ -429,117 +417,37 @@ function matchRangeSelector(selector: RangeSelector, container: HTMLElement): Ra
 }
 
 /**
- * Match using TextPositionSelector (character offsets)
+ * Match using TextPositionSelector using Hypothesis library
  */
 function matchTextPositionSelector(
   selector: TextPositionSelector,
   container: HTMLElement
 ): Range | null {
-  const { start, end } = selector;
-  
-  let currentPos = 0;
-  let startNode: Node | null = null;
-  let startOffset = 0;
-  let endNode: Node | null = null;
-  let endOffset = 0;
-  
-  const walker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT,
-    null
-  );
-  
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    const textLength = (node.textContent || '').length;
-    
-    // Find start position
-    if (!startNode && currentPos + textLength >= start) {
-      startNode = node;
-      startOffset = start - currentPos;
-    }
-    
-    // Find end position
-    if (!endNode && currentPos + textLength >= end) {
-      endNode = node;
-      endOffset = end - currentPos;
-      break;
-    }
-    
-    currentPos += textLength;
-  }
-  
-  if (!startNode || !endNode) return null;
-  
   try {
-    const range = document.createRange();
-    range.setStart(startNode, startOffset);
-    range.setEnd(endNode, endOffset);
+    // Use Hypothesis library for precise position matching
+    const range = textPosition.toRange(container, selector);
     return range;
   } catch (e) {
-    console.warn('TextPositionSelector range creation failed:', e);
+    console.warn('TextPositionSelector match failed:', e);
     return null;
   }
 }
 
 /**
- * Match using TextQuoteSelector (text + context)
+ * Match using TextQuoteSelector using Hypothesis library
  */
 function matchTextQuoteSelector(
   selector: TextQuoteSelector,
   container: HTMLElement
 ): Range | null {
-  const { exact, prefix, suffix } = selector;
-  const fullText = container.textContent || '';
-  
-  // Normalize text for matching
-  const normalize = (text: string) => text.replace(/\s+/g, ' ').toLowerCase();
-  const normalizedFull = normalize(fullText);
-  const normalizedExact = normalize(exact);
-  
-  let bestMatch: { start: number; end: number; score: number } | null = null;
-  let searchStart = 0;
-  
-  while (searchStart < normalizedFull.length) {
-    const index = normalizedFull.indexOf(normalizedExact, searchStart);
-    if (index === -1) break;
-    
-    // Score this match based on context
-    let score = 1;
-    
-    if (prefix) {
-      const actualPrefix = normalizedFull.substring(
-        Math.max(0, index - prefix.length),
-        index
-      );
-      const normalizedPrefix = normalize(prefix);
-      if (actualPrefix.includes(normalizedPrefix)) score += 2;
-    }
-    
-    if (suffix) {
-      const actualSuffix = normalizedFull.substring(
-        index + normalizedExact.length,
-        index + normalizedExact.length + suffix.length
-      );
-      const normalizedSuffix = normalize(suffix);
-      if (actualSuffix.includes(normalizedSuffix)) score += 2;
-    }
-    
-    if (!bestMatch || score > bestMatch.score) {
-      bestMatch = {
-        start: index,
-        end: index + normalizedExact.length,
-        score
-      };
-    }
-    
-    searchStart = index + 1;
+  try {
+    // Use Hypothesis library for fuzzy text matching with context
+    const range = textQuote.toRange(container, selector);
+    return range;
+  } catch (e) {
+    console.warn('TextQuoteSelector match failed:', e);
+    return null;
   }
-  
-  if (!bestMatch) return null;
-  
-  // Convert text positions to DOM Range
-  return createRangeFromTextPosition(container, bestMatch.start, bestMatch.end);
 }
 
 /**
@@ -1106,160 +1014,74 @@ function addBackgroundToRange(range: Range, uri: string) {
 
 ---
 
-## Phase 6: AppView/Indexer (Days 10-12)
+## Phase 6: AppView Integration (Days 10-12)
 
-### 6.1 Create Simple Cloudflare Worker Indexer
+### 6.1 Use Slices.network for AppView
 
-**Create: `workers/annotation-indexer/index.ts`**
+**Note: We will use [slices.network](https://slices.network) for the AppView/indexing layer rather than building our own.**
+
+Slices.network provides:
+- Automatic firehose consumption and indexing
+- Custom lexicon support
+- Query API for annotations by URL
+- No infrastructure to maintain
+
+### 6.2 Configure Slices Integration
+
+**Update: `src/lib/api/annotations.ts`**
 
 ```typescript
+const SLICES_API_URL = import.meta.env.VITE_SLICES_API_URL || 'https://api.slices.network';
+
 /**
- * Simple annotation indexer using Cloudflare Workers + KV
- * Indexes annotations by URL for fast lookup
+ * Query annotations for a URL using Slices AppView
  */
-
-interface Env {
-  ANNOTATIONS_KV: KVNamespace;
-}
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    
-    // CORS headers
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    };
-    
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
-    }
-    
-    // POST /index - Index a new annotation
-    if (url.pathname === '/index' && request.method === 'POST') {
-      const annotation = await request.json();
-      await indexAnnotation(annotation, env.ANNOTATIONS_KV);
-      return new Response('OK', { headers: corsHeaders });
-    }
-    
-    // GET /annotations?url=... - Query annotations by URL
-    if (url.pathname === '/annotations' && request.method === 'GET') {
-      const targetUrl = url.searchParams.get('url');
-      if (!targetUrl) {
-        return new Response('Missing url parameter', { 
-          status: 400, 
-          headers: corsHeaders 
-        });
-      }
-      
-      const annotations = await queryAnnotations(targetUrl, env.ANNOTATIONS_KV);
-      return new Response(JSON.stringify({ annotations }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-    
-    return new Response('Not Found', { status: 404, headers: corsHeaders });
-  }
-};
-
-async function indexAnnotation(annotation: any, kv: KVNamespace) {
-  const targetUrl = annotation.target?.[0]?.source;
-  if (!targetUrl) return;
-  
-  const canonicalUrl = canonicalizeUrl(targetUrl);
-  
-  // Get existing annotations for this URL
-  const existing = await kv.get(`url:${canonicalUrl}`, 'json') || [];
-  
-  // Add new annotation (dedupe by URI)
-  const updated = [
-    ...existing.filter((a: any) => a.uri !== annotation.uri),
-    annotation
-  ];
-  
-  // Store back
-  await kv.put(`url:${canonicalUrl}`, JSON.stringify(updated));
-  
-  // Also index by annotation URI for fast lookup
-  await kv.put(`ann:${annotation.uri}`, JSON.stringify(annotation));
-}
-
-async function queryAnnotations(url: string, kv: KVNamespace): Promise<any[]> {
-  const canonicalUrl = canonicalizeUrl(url);
-  const annotations = await kv.get(`url:${canonicalUrl}`, 'json');
-  return annotations || [];
-}
-
-function canonicalizeUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    parsed.hostname = parsed.hostname.toLowerCase();
-    parsed.pathname = parsed.pathname.replace(/\/$/, '');
-    parsed.hash = '';
-    return parsed.toString();
-  } catch {
-    return url;
-  }
-}
-```
-
-### 6.2 Deploy Worker
-
-```bash
-cd workers/annotation-indexer
-
-# Install Wrangler
-npm install -g wrangler
-
-# Create KV namespace
-wrangler kv:namespace create ANNOTATIONS_KV
-
-# Add to wrangler.toml:
-# kv_namespaces = [
-#   { binding = "ANNOTATIONS_KV", id = "YOUR_KV_ID" }
-# ]
-
-# Deploy
-wrangler publish
-```
-
-### 6.3 Update Frontend to Use Indexer
-
-**Modify: `src/lib/api/annotations.ts`**
-
-```typescript
-const INDEXER_URL = import.meta.env.VITE_INDEXER_URL || 'https://your-worker.workers.dev';
-
 export async function getAnnotationsForUrl(url: string): Promise<Annotation[]> {
+  const canonicalUrl = canonicalizeUrl(url);
+  
   try {
     const response = await fetch(
-      `${INDEXER_URL}/annotations?` + new URLSearchParams({ url })
+      `${SLICES_API_URL}/xrpc/com.woomarks.annotation.query?` + 
+      new URLSearchParams({ 
+        url: canonicalUrl,
+        limit: '100'
+      })
     );
     
     const data = await response.json();
     return data.annotations || [];
   } catch (error) {
-    console.error('Indexer query failed:', error);
-    // Fallback to direct queries
+    console.error('Slices query failed:', error);
     return [];
   }
 }
 
-// Call indexer after creating annotation
-export async function indexAnnotation(annotation: Annotation) {
+/**
+ * Canonicalize URL for consistent matching
+ */
+function canonicalizeUrl(url: string): string {
   try {
-    await fetch(`${INDEXER_URL}/index`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(annotation)
-    });
-  } catch (error) {
-    console.error('Failed to index annotation:', error);
+    const parsed = new URL(url);
+    
+    // Lowercase host
+    parsed.hostname = parsed.hostname.toLowerCase();
+    
+    // Remove trailing slash
+    parsed.pathname = parsed.pathname.replace(/\/$/, '');
+    
+    // Remove fragment
+    parsed.hash = '';
+    
+    return parsed.toString();
+  } catch (e) {
+    return url;
   }
 }
 ```
+
+### 6.3 Register Lexicon with Slices
+
+Follow Slices.network documentation to register `com.woomarks.annotation.annotation` lexicon for indexing.
 
 ---
 
